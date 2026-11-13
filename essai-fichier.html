@@ -1,0 +1,194 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Essai d'enregistrement dans un fichier</title>
+<style>
+  :root { --fond: #F3F1EA; --papier: #FFFFFF; --encre: #1B2838; --pale: #5C6675; --trait: #D9D4C7; --marine: #1F3A5F; --oui: #1E6B3A; --non: #A3261E; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--fond); color: var(--encre); font: 17px/1.5 -apple-system, "Segoe UI", Arial, sans-serif; }
+  main { max-width: 760px; margin: 0 auto; padding: 28px 18px 60px; }
+  h1 { font-size: 26px; line-height: 1.2; margin: 0 0 10px; }
+  h2 { font-size: 20px; margin: 30px 0 10px; }
+  p { margin: 0 0 12px; }
+  .note { color: var(--pale); font-size: 15px; }
+  ol { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; }
+  li { background: var(--papier); border: 1px solid var(--trait); border-radius: 8px; padding: 14px 16px; display: grid; gap: 8px; }
+  li b { font-size: 17px; }
+  button { font: inherit; font-weight: 600; padding: 9px 16px; border-radius: 8px; border: 1px solid var(--marine); background: var(--marine); color: #fff; cursor: pointer; justify-self: start; }
+  button.second { background: #fff; color: var(--marine); }
+  button:disabled { opacity: 0.4; cursor: default; }
+  button:focus-visible { outline: 3px solid #8FB3E0; outline-offset: 2px; }
+  .etat { font-size: 15px; min-height: 22px; }
+  .oui { color: var(--oui); font-weight: 600; } .non { color: var(--non); font-weight: 600; }
+  .choix { display: flex; flex-wrap: wrap; gap: 8px; }
+  pre { background: var(--papier); border: 1px solid var(--trait); border-radius: 8px; padding: 14px 16px; font: 14px/1.5 ui-monospace, Menlo, Consolas, monospace; white-space: pre-wrap; margin: 0 0 10px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Essai : ce poste peut-il enregistrer dans un fichier ?</h1>
+  <p>Cette page ne contient aucune donnée et n'envoie rien nulle part. Elle vérifie ce que ce navigateur permet sur ce poste. Suis les étapes dans l'ordre, puis transmets le résultat du bas de la page.</p>
+  <p class="note">Le fichier d'essai ne contient qu'une phrase. Tu peux le supprimer après.</p>
+
+  <h2>Les étapes</h2>
+  <ol>
+    <li>
+      <b>1. Créer un fichier d'essai</b>
+      <span>Une fenêtre demande où l'enregistrer. Choisis le Bureau ou Documents.</span>
+      <button id="creer">Créer le fichier d'essai</button>
+      <span class="etat" id="e-creer"></span>
+    </li>
+    <li>
+      <b>2. Écrire de nouveau dans le même fichier</b>
+      <span>Aucune fenêtre ne devrait s'ouvrir : c'est l'enregistrement « comme Word ».</span>
+      <button id="recrire" disabled>Écrire de nouveau</button>
+      <span class="etat" id="e-recrire"></span>
+    </li>
+    <li>
+      <b>3. Relire le fichier</b>
+      <button id="relire" disabled>Relire</button>
+      <span class="etat" id="e-relire"></span>
+    </li>
+    <li>
+      <b>4. Retrouver le fichier après avoir fermé la page</b>
+      <span>Ferme cet onglet, rouvre la même adresse, puis clique ici. Le navigateur peut demander une autorisation.</span>
+      <button id="retrouver" class="second">Retrouver le fichier</button>
+      <span class="etat" id="e-retrouver"></span>
+    </li>
+    <li>
+      <b>5. Télécharger une copie</b>
+      <span>C'est la solution de rechange. Un fichier « essai-copie.txt » devrait arriver dans Téléchargements.</span>
+      <button id="telecharger" class="second">Télécharger une copie</button>
+      <div class="choix" id="q-telecharger" hidden>
+        <span>Le fichier est-il arrivé ?</span>
+        <button class="second" data-rep="oui">Oui</button>
+        <button class="second" data-rep="non">Non</button>
+      </div>
+      <span class="etat" id="e-telecharger"></span>
+    </li>
+  </ol>
+
+  <h2>Résultat à transmettre</h2>
+  <pre id="bilan">…</pre>
+  <button id="copier" class="second">Copier le résultat</button>
+  <span class="etat" id="e-copier"></span>
+</main>
+
+<script>
+(() => {
+  "use strict";
+  const $ = (id) => document.getElementById(id);
+  const R = {};                                   // les résultats, dans l'ordre où ils s'écrivent
+  const noter = (cle, ok, detail) => { R[cle] = (ok === null ? "à faire" : ok ? "OUI" : "NON") + (detail ? " — " + detail : ""); bilan(); };
+  const dire = (id, ok, texte) => { const e = $(id); e.textContent = texte; e.className = "etat " + (ok ? "oui" : "non"); };
+  const LIBELLES = {
+    page: "Page sécurisée (https)", api: "Enregistrement direct offert par le navigateur", wasm: "Moteur (WebAssembly)", chiffre: "Chiffrement (AES-GCM)",
+    memoire: "Mémoire du navigateur (IndexedDB)", creer: "1. Créer un fichier", recrire: "2. Écrire de nouveau sans fenêtre", relire: "3. Relire le fichier",
+    retrouver: "4. Retrouver le fichier après fermeture", telecharger: "5. Télécharger une copie",
+  };
+  function bilan() {
+    const lignes = Object.keys(LIBELLES).map((k) => LIBELLES[k] + " : " + (R[k] || "à faire"));
+    lignes.push("Navigateur : " + navigator.userAgent);
+    lignes.push("Date : " + new Date().toLocaleString("fr-CA"));
+    $("bilan").textContent = lignes.join("\n");
+  }
+
+  // ── Ce qui se vérifie tout seul ──
+  noter("page", window.isSecureContext === true);
+  const api = typeof window.showSaveFilePicker === "function";
+  noter("api", api, api ? "" : "ce navigateur ne l'offre pas, ou le poste l'interdit");
+  try { new WebAssembly.Module(new Uint8Array([0, 97, 115, 109, 1, 0, 0, 0])); noter("wasm", true); }
+  catch (e) { noter("wasm", false, String(e.message || e)); }
+  (async () => {
+    try {
+      const sel = crypto.getRandomValues(new Uint8Array(16)), nonce = crypto.getRandomValues(new Uint8Array(12));
+      const base = await crypto.subtle.importKey("raw", new TextEncoder().encode("essai"), "HKDF", false, ["deriveKey"]);
+      const cle = await crypto.subtle.deriveKey({ name: "HKDF", hash: "SHA-256", salt: sel, info: new Uint8Array(0) }, base, { name: "AES-GCM", length: 256 }, false, ["encrypt", "decrypt"]);
+      const clair = new TextEncoder().encode("aller et retour");
+      const chiffre = await crypto.subtle.encrypt({ name: "AES-GCM", iv: nonce }, cle, clair);
+      const retour = await crypto.subtle.decrypt({ name: "AES-GCM", iv: nonce }, cle, chiffre);
+      noter("chiffre", new TextDecoder().decode(retour) === "aller et retour");
+    } catch (e) { noter("chiffre", false, String(e.message || e)); }
+  })();
+
+  // ── La mémoire du navigateur, pour retrouver le fichier ──
+  const base = () => new Promise((ok, non) => {
+    const o = indexedDB.open("essai-fichier", 1);
+    o.onupgradeneeded = () => o.result.createObjectStore("poignees");
+    o.onsuccess = () => ok(o.result); o.onerror = () => non(o.error);
+  });
+  const ranger = async (h) => { const b = await base(); await new Promise((ok, non) => { const t = b.transaction("poignees", "readwrite"); t.objectStore("poignees").put(h, "fichier"); t.oncomplete = ok; t.onerror = () => non(t.error); }); };
+  const reprendre = async () => { const b = await base(); return new Promise((ok, non) => { const q = b.transaction("poignees").objectStore("poignees").get("fichier"); q.onsuccess = () => ok(q.result); q.onerror = () => non(q.error); }); };
+  (async () => { try { await base(); noter("memoire", true); } catch (e) { noter("memoire", false, String(e.message || e)); } })();
+
+  let fichier = null;
+  const ecrire = async (texte) => { const w = await fichier.createWritable(); await w.write(texte); await w.close(); };
+  const phrase = (n) => `Essai ${n} — ${new Date().toLocaleString("fr-CA")}\n`;
+
+  $("creer").disabled = !api;
+  if (!api) dire("e-creer", false, "Ce navigateur n'offre pas l'enregistrement direct. Passe à l'étape 5.");
+  $("creer").addEventListener("click", async () => {
+    try {
+      fichier = await window.showSaveFilePicker({ suggestedName: "essai-temoin.txt", types: [{ description: "Texte", accept: { "text/plain": [".txt"] } }] });
+      await ecrire(phrase(1));
+      dire("e-creer", true, "Fichier créé : " + fichier.name);
+      noter("creer", true);
+      $("recrire").disabled = false; $("relire").disabled = false;
+      try { await ranger(fichier); } catch (e) { /* l'étape 4 le dira */ }
+    } catch (e) {
+      const annule = e && e.name === "AbortError";
+      dire("e-creer", false, annule ? "Annulé. Recommence quand tu veux." : "Refusé : " + (e.message || e));
+      if (!annule) noter("creer", false, String(e.name || "") + " " + String(e.message || e));
+    }
+  });
+  $("recrire").addEventListener("click", async () => {
+    try { await ecrire(phrase(1) + phrase(2)); dire("e-recrire", true, "Écrit une deuxième fois, sans fenêtre."); noter("recrire", true); }
+    catch (e) { dire("e-recrire", false, "Refusé : " + (e.message || e)); noter("recrire", false, String(e.message || e)); }
+  });
+  $("relire").addEventListener("click", async () => {
+    try {
+      const texte = await (await fichier.getFile()).text();
+      const bon = texte.includes("Essai 2") || texte.includes("Essai 1");
+      dire("e-relire", bon, bon ? "Relu : " + texte.trim().split("\n").length + " ligne(s)." : "Le fichier ne contient pas ce qui a été écrit.");
+      noter("relire", bon);
+    } catch (e) { dire("e-relire", false, "Refusé : " + (e.message || e)); noter("relire", false, String(e.message || e)); }
+  });
+  $("retrouver").addEventListener("click", async () => {
+    try {
+      const h = await reprendre();
+      if (!h) { dire("e-retrouver", false, "Aucun fichier en mémoire : fais d'abord l'étape 1, puis ferme et rouvre la page."); return; }
+      const droit = await h.requestPermission({ mode: "readwrite" });
+      if (droit !== "granted") { dire("e-retrouver", false, "Autorisation refusée."); noter("retrouver", false, "autorisation " + droit); return; }
+      fichier = h;
+      await ecrire(phrase(1) + phrase(2) + phrase(3));
+      dire("e-retrouver", true, "Retrouvé et écrit de nouveau : " + h.name);
+      noter("retrouver", true);
+      $("recrire").disabled = false; $("relire").disabled = false;
+    } catch (e) { dire("e-retrouver", false, "Refusé : " + (e.message || e)); noter("retrouver", false, String(e.message || e)); }
+  });
+  $("telecharger").addEventListener("click", () => {
+    try {
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(new Blob([phrase("copie")], { type: "text/plain" }));
+      a.download = "essai-copie.txt";
+      document.body.appendChild(a); a.click(); a.remove();
+      $("q-telecharger").hidden = false;
+    } catch (e) { dire("e-telecharger", false, "Refusé : " + (e.message || e)); noter("telecharger", false, String(e.message || e)); }
+  });
+  for (const b of document.querySelectorAll("#q-telecharger button")) b.addEventListener("click", () => {
+    const oui = b.dataset.rep === "oui";
+    dire("e-telecharger", oui, oui ? "Le téléchargement fonctionne." : "Le téléchargement est bloqué sur ce poste.");
+    noter("telecharger", oui);
+  });
+  $("copier").addEventListener("click", async () => {
+    try { await navigator.clipboard.writeText($("bilan").textContent); dire("e-copier", true, "Copié."); }
+    catch (e) { const s = getSelection(), r = document.createRange(); r.selectNodeContents($("bilan")); s.removeAllRanges(); s.addRange(r); dire("e-copier", false, "Sélectionné : copie avec Ctrl + C."); }
+  });
+  bilan();
+})();
+</script>
+</body>
+</html>
